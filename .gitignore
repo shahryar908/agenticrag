@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment variables (SENSITIVE - DO NOT COMMIT)
+.env
+.env.local
+
+# Database
+chroma_db/
+*.db
+*.sqlite
+
+# Terraform (SENSITIVE - DO NOT COMMIT)
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars
+terraform/crash.log
+
+# Logs
+*.log
+nul
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code (optional - you can commit this if you want)
+.claude/
+
+# Python version file
+.python-version
+
+# UV lock file (optional - some teams commit this)
+# uv.lock

@@ -1,0 +1,45 @@
+# =========================================
+# Terraform Variables Values (EXAMPLE)
+# =========================================
+# Copy this to terraform.tfvars and fill in your values
+# DO NOT commit terraform.tfvars - it contains secrets!
+# =========================================
+
+# General Configuration
+aws_region  = "us-east-1"
+environment = "production"
+owner       = "your-name"
+
+# EKS Cluster Configuration
+cluster_name    = "rag-production"
+cluster_version = "1.28"
+
+# VPC Configuration
+vpc_cidr = "10.0.0.0/16"
+
+# Node Group Configuration
+node_instance_types = ["t3.medium"]
+node_desired_size   = 2
+node_min_size       = 1
+node_max_size       = 4
+node_disk_size      = 20
+
+# Application Configuration
+# IMPORTANT: Set your Groq API key here or use environment variable:
+# export TF_VAR_groq_api_key="your-key-here"
+groq_api_key = "your-groq-api-key-here"
+
+# Monitoring
+enable_prometheus = true
+enable_grafana    = true
+
+# Cost Optimization
+# Set to true to use Spot instances (70% cheaper but can be interrupted)
+enable_spot_instances = false
+spot_instance_types   = ["t3.medium", "t3a.medium"]
+
+# Additional Tags
+additional_tags = {
+  Project = "RAG-System"
+  Team    = "DevOps"
+}

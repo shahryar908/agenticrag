@@ -1,0 +1,173 @@
+# =========================================
+# CI/CD Pipeline for RAG System
+# =========================================
+#
+# What this does:
+# 1. Runs on every push to 'main' branch
+# 2. Builds Docker image
+# 3. Pushes to DockerHub
+# 4. Deploys to AWS EKS
+#
+# =========================================
+
+name: Build and Deploy to EKS
+
+on:
+  push:
+    branches:
+      - main  # Triggers on push to main branch
+  pull_request:
+    branches:
+      - main
+
+env:
+  DOCKER_IMAGE: shahryar371/rag-system-image
+  AWS_REGION: us-east-1
+  EKS_CLUSTER: rag-production
+
+jobs:
+  # =========================================
+  # JOB 1: BUILD & TEST
+  # =========================================
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Python
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync
+
+      # Step 4: Run tests (optional - add your tests)
+      # - name: Run tests
+      #   run: |
+      #     uv run pytest tests/
+
+  # =========================================
+  # JOB 2: BUILD & PUSH DOCKER IMAGE
+  # =========================================
+  docker:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: build  # Wait for build job to complete
+
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # Step 3: Login to DockerHub
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Step 4: Build and push Docker image
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:latest
+            ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.DOCKER_IMAGE }}:latest
+          cache-to: type=inline
+
+  # =========================================
+  # JOB 3: DEPLOY TO AWS EKS
+  # =========================================
+  deploy:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    needs: docker  # Wait for docker job to complete
+
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Step 3: Install kubectl
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+
+      # Step 4: Update kubeconfig
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name ${{ env.EKS_CLUSTER }}
+
+      # Step 5: Create namespace (if doesn't exist)
+      - name: Create namespace
+        run: |
+          kubectl apply -f k8s/namespace.yml
+
+      # Step 6: Apply secrets
+      - name: Apply secrets
+        run: |
+          # Base64 encode GROQ_API_KEY
+          ENCODED_KEY=$(echo -n "${{ secrets.GROQ_API_KEY }}" | base64)
+
+          # Create secret from template
+          cat <<EOF | kubectl apply -f -
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: rag-system-secret
+            namespace: rag-system
+          type: Opaque
+          data:
+            GROQ_API_KEY: ${ENCODED_KEY}
+          EOF
+
+      # Step 7: Deploy to Kubernetes
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl apply -f k8s/deployment.yml
+          kubectl apply -f k8s/service.yml
+
+      # Step 8: Wait for deployment to complete
+      - name: Wait for deployment
+        run: |
+          kubectl rollout status deployment/rag-system-deployment -n rag-system --timeout=5m
+
+      # Step 9: Get service URL
+      - name: Get service URL
+        run: |
+          echo "Deployment complete!"
+          kubectl get svc -n rag-system
+          echo "Waiting for LoadBalancer IP..."
+          kubectl get svc rag-system-service -n rag-system -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+
+      # Step 10: Verify deployment
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n rag-system
+          kubectl get deployment -n rag-system
