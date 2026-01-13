@@ -21,7 +21,9 @@ RUN uv sync --frozen
 
 # Copy application code
 COPY api_server.py complete_rag.py agentic_rag.py ./
-COPY .env ./
+
+# Note: .env is NOT copied - environment variables come from Kubernetes Secret
+# In K8s, GROQ_API_KEY is injected via secretRef
 
 # Create directories
 RUN mkdir -p /app/chroma_db /app/uploads
