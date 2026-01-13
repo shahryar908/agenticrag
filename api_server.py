@@ -207,13 +207,33 @@ rag_service = RAGService()
 
 @app.get("/")
 async def root():
-    """API health check"""
+    """API root endpoint"""
     return {
         "status": "running",
         "message": "RAG API Server",
         "version": "1.0.0",
         "docs": "/docs"
     }
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Kubernetes probes"""
+    try:
+        # Check if RAG service is initialized
+        if rag_service is None:
+            return {"status": "unhealthy", "error": "RAG service not initialized"}
+
+        # Check if ChromaDB is accessible
+        count = rag_service.collection.count()
+
+        return {
+            "status": "healthy",
+            "documents": count,
+            "version": "1.0.0"
+        }
+    except Exception as e:
+        return {"status": "unhealthy", "error": str(e)}
 
 
 @app.post("/upload-pdf")
